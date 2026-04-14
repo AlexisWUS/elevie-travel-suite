@@ -1,5 +1,3 @@
-import { BottomNav } from "@/components/BottomNav";
-import { SummaryPanel } from "@/components/SummaryPanel";
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
