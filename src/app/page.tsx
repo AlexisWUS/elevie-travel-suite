@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 function SectionCard({
   title,
@@ -20,69 +21,87 @@ function SectionCard({
 export default function Home() {
   return (
     <main className="min-h-screen bg-elevie-sand pb-24">
+      
+      {/* HEADER */}
       <header className="sticky top-0 z-10 border-b border-white/30 bg-elevie-ink px-4 py-4 text-elevie-sand">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
+          
           <div>
             <h1 className="text-2xl md:text-3xl">
               Elevie Travel Suite
             </h1>
             <p className="text-sm text-white/70">
-              Mobile-first internal quoting platform
+              Internal quoting platform
             </p>
           </div>
-          <button className="rounded-xl bg-white/10 px-4 py-2 text-sm">
-            Nueva cotización
-          </button>
+
+          {/* 🔥 BOTONES NUEVOS */}
+          <div className="flex gap-3">
+            <Link
+              href="/quotes"
+              className="rounded-xl bg-white/10 px-4 py-2 text-sm hover:bg-white/20 transition"
+            >
+              Quotes
+            </Link>
+
+            <Link
+              href="/quotes/new"
+              className="rounded-xl bg-white/10 px-4 py-2 text-sm hover:bg-white/20 transition"
+            >
+              New Quote
+            </Link>
+          </div>
+
         </div>
       </header>
 
+      {/* CONTENIDO */}
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 md:grid-cols-[1.1fr_1.4fr_0.9fr]">
-        
+
+        {/* IZQUIERDA */}
         <div className="space-y-6">
-          <SectionCard title="Datos generales">
-            <div className="grid gap-3">
-              <input
-                className="rounded-xl border border-elevie-mist px-4 py-3"
-                placeholder="Nombre del viaje"
-              />
-              <input
-                className="rounded-xl border border-elevie-mist px-4 py-3"
-                placeholder="Destino principal"
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  className="rounded-xl border border-elevie-mist px-4 py-3"
-                  placeholder="Salida"
-                />
-                <input
-                  className="rounded-xl border border-elevie-mist px-4 py-3"
-                  placeholder="Regreso"
-                />
-              </div>
-            </div>
+          <SectionCard title="Dashboard">
+            <p className="text-sm text-slate-500">
+              Manage all quotes, create new ones, and track progress.
+            </p>
           </SectionCard>
 
-          <SectionCard title="Versiones">
-            <div className="space-y-3 text-sm">
-              <div className="rounded-xl bg-elevie-mist p-4">
-                V1 · Draft inicial
-              </div>
-              <div className="rounded-xl bg-elevie-mist p-4">
-                V2 · Pendiente de exportación
-              </div>
+          <SectionCard title="Quick Actions">
+            <div className="flex flex-col gap-3">
+              <Link
+                href="/quotes"
+                className="rounded-xl bg-elevie-mist p-4 text-sm hover:bg-gray-200"
+              >
+                View all quotes
+              </Link>
+
+              <Link
+                href="/quotes/new"
+                className="rounded-xl bg-elevie-mist p-4 text-sm hover:bg-gray-200"
+              >
+                Create new quote
+              </Link>
             </div>
           </SectionCard>
         </div>
 
+        {/* CENTRO */}
         <div>
-          <SectionCard title="Itinerario">
+          <SectionCard title="Elevie">
             <p className="text-sm text-slate-500">
-              Editor flexible por categoría, pensado para iPhone y desktop.
+              This is your internal system to create and manage luxury travel quotes.
             </p>
           </SectionCard>
         </div>
 
-        <div className="hidden md:block"></div>
+        {/* DERECHA */}
+        <div className="hidden md:block">
+          <SectionCard title="Status">
+            <p className="text-sm text-slate-500">
+              Drafts, sent quotes, and confirmed trips will appear here.
+            </p>
+          </SectionCard>
+        </div>
 
       </div>
 
