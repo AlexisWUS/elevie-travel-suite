@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+
+type ServiceType = "hotel" | "flight" | "transfer" | "tour" | "extra";
+type CurrencyCode = "USD" | "EUR" | "MXN" | "GBP" | "JPY" | "OTHER";
 
 export default function NewQuoteServicePage() {
   const { id } = useParams();
@@ -11,42 +14,199 @@ export default function NewQuoteServicePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const [serviceType, setServiceType] = useState("hotel");
-  const [serviceName, setServiceName] = useState("");
-  const [city, setCity] = useState("");
+  const [serviceType, setServiceType] = useState<ServiceType>("hotel");
+
+  const [currency, setCurrency] = useState<CurrencyCode>("USD");
+  const [otherCurrency, setOtherCurrency] = useState("");
+
   const [supplier, setSupplier] = useState("");
-  const [currency, setCurrency] = useState("USD");
-  const [unitCost, setUnitCost] = useState("");
-  const [quantity, setQuantity] = useState("1");
+  const [confirmationCode, setConfirmationCode] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const [netCost, setNetCost] = useState("");
   const [taxAmount, setTaxAmount] = useState("0");
+
   const [markupEnabled, setMarkupEnabled] = useState(false);
   const [markupPercent, setMarkupPercent] = useState("0");
-  const [applyCcFee, setApplyCcFee] = useState(true);
-  const [notes, setNotes] = useState("");
+
+  const [excludeCcFee, setExcludeCcFee] = useState(false);
+
+  const [hotelName, setHotelName] = useState("");
+  const [hotelCity, setHotelCity] = useState("");
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
+  const [nights, setNights] = useState("");
+  const [roomType, setRoomType] = useState("");
+  const [rooms, setRooms] = useState("1");
+  const [mealPlan, setMealPlan] = useState("");
+
+  const [airline, setAirline] = useState("");
+  const [route, setRoute] = useState("");
+  const [flightNumber, setFlightNumber] = useState("");
+  const [departureAirport, setDepartureAirport] = useState("");
+  const [arrivalAirport, setArrivalAirport] = useState("");
+  const [departureDateTime, setDepartureDateTime] = useState("");
+  const [arrivalDateTime, setArrivalDateTime] = useState("");
+  const [cabinClass, setCabinClass] = useState("");
+
+  const [genericName, setGenericName] = useState("");
+  const [genericCity, setGenericCity] = useState("");
+  const [genericDate, setGenericDate] = useState("");
+
+  const resolvedCurrency = useMemo(() => {
+    if (currency === "OTHER") {
+      return otherCurrency.trim().toUpperCase();
+    }
+    return currency;
+  }, [currency, otherCurrency]);
+
+  function getServiceName() {
+    if (serviceType === "hotel") {
+      return hotelName.trim();
+    }
+
+    if (serviceType === "flight") {
+      if (route.trim()) return route.trim();
+      return [departureAirport.trim(), arrivalAirport.trim()].filter(Boolean).join(" to ");
+    }
+
+    return genericName.trim();
+  }
+
+  function getCity() {
+    if (serviceType === "hotel") return hotelCity.trim() || null;
+    if (serviceType === "flight") return null;
+    return genericCity.trim() || null;
+  }
+
+  function getStartDate() {
+    if (serviceType === "hotel") return checkIn || null;
+    return null;
+  }
+
+  function getEndDate() {
+    if (serviceType === "hotel") return checkOut || null;
+    return null;
+  }
+
+  function getServiceDate() {
+    if (serviceType === "flight") {
+      return departureDateTime ? departureDateTime.slice(0, 10) : null;
+    }
+
+    if (serviceType === "transfer" || serviceType === "tour" || serviceType === "extra") {
+      return genericDate || null;
+    }
+
+    return null;
+  }
+
+  function buildDetails() {
+    if (serviceType === "hotel") {
+      return {
+        hotel_name: hotelName.trim(),
+        city: hotelCity.trim(),
+        check_in: checkIn || null,
+        check_out: checkOut || null,
+        nights: nights ? Number(nights) : null,
+        room_type: roomType.trim() || null,
+        rooms: rooms ? Number(rooms) : 1,
+        meal_plan: mealPlan.trim() || null,
+      };
+    }
+
+    if (serviceType === "flight") {
+      return {
+        airline: airline.trim() || null,
+        route: route.trim() || null,
+        flight_number: flightNumber.trim() || null,
+        departure_airport_code: departureAirport.trim().toUpperCase() || null,
+        arrival_airport_code: arrivalAirport.trim().toUpperCase() || null,
+        departure_datetime: departureDateTime || null,
+        arrival_datetime: arrivalDateTime || null,
+        cabin_class: cabinClass.trim() || null,
+      };
+    }
+
+    return {
+      name: genericName.trim(),
+      city: genericCity.trim() || null,
+      service_date: genericDate || null,
+    };
+  }
+
+  function validateForm() {
+    if (currency === "OTHER" && !otherCurrency.trim()) {
+      return "Escribe la moneda en la opción OTHER.";
+    }
+
+    if (!resolvedCurrency) {
+      return "Selecciona una moneda válida.";
+    }
+
+    if (serviceType === "hotel") {
+      if (!hotelName.trim()) return "Escribe el nombre del hotel.";
+      if (!checkIn) return "Selecciona el check-in.";
+      if (!checkOut) return "Selecciona el check-out.";
+    }
+
+    if (serviceType === "flight") {
+      if (!route.trim() && (!departureAirport.trim() || !arrivalAirport.trim())) {
+        return "Escribe la ruta o el aeropuerto de salida y llegada.";
+      }
+    }
+
+    if (serviceType === "transfer" || serviceType === "tour" || serviceType === "extra") {
+      if (!genericName.trim()) return "Escribe el nombre del servicio.";
+    }
+
+    return "";
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError("");
 
-    const { error } = await supabase.from("quote_items").insert({
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      setSaving(false);
+      return;
+    }
+
+    const serviceName = getServiceName();
+
+    const payload = {
       quote_id: id,
       service_type: serviceType,
       service_name: serviceName,
-      city: city || null,
-      supplier: supplier || null,
-      currency,
-      unit_cost: unitCost ? Number(unitCost) : 0,
-      quantity: quantity ? Number(quantity) : 1,
+      city: getCity(),
+      start_date: getStartDate(),
+      end_date: getEndDate(),
+      service_date: getServiceDate(),
+      supplier: supplier.trim() || null,
+      confirmation_code: confirmationCode.trim() || null,
+      notes: notes.trim() || null,
+      currency: resolvedCurrency,
+      unit_cost: netCost ? Number(netCost) : 0,
+      quantity:
+        serviceType === "hotel"
+          ? rooms
+            ? Number(rooms)
+            : 1
+          : 1,
       tax_amount: taxAmount ? Number(taxAmount) : 0,
       markup_enabled: markupEnabled,
-      markup_percent: markupPercent ? Number(markupPercent) : 0,
-      apply_cc_fee: applyCcFee,
-      notes: notes || null,
-    });
+      markup_percent: markupEnabled && markupPercent ? Number(markupPercent) : 0,
+      apply_cc_fee: !excludeCcFee,
+      details: buildDetails(),
+    };
+
+    const { error } = await supabase.from("quote_items").insert(payload);
 
     if (error) {
-      setError("No se pudo guardar el servicio.");
+      setError(`No se pudo guardar el servicio. ${error.message}`);
       setSaving(false);
       return;
     }
@@ -56,8 +216,33 @@ export default function NewQuoteServicePage() {
   }
 
   return (
-    <div style={{ maxWidth: "760px", margin: "0 auto", padding: "24px" }}>
-      <h1 style={{ fontSize: "28px", marginBottom: "24px" }}>Add Service</h1>
+    <div style={{ maxWidth: "860px", margin: "0 auto", padding: "24px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "12px",
+          marginBottom: "24px",
+          flexWrap: "wrap",
+        }}
+      >
+        <h1 style={{ fontSize: "28px", margin: 0 }}>Add Service</h1>
+
+        <button
+          type="button"
+          onClick={() => router.push(`/quotes/${id}`)}
+          style={{
+            padding: "10px 16px",
+            borderRadius: "8px",
+            border: "1px solid #ccc",
+            background: "white",
+            cursor: "pointer",
+          }}
+        >
+          View Quote
+        </button>
+      </div>
 
       {error && (
         <div
@@ -78,7 +263,7 @@ export default function NewQuoteServicePage() {
           <label style={{ display: "block", marginBottom: "6px" }}>Service Type</label>
           <select
             value={serviceType}
-            onChange={(e) => setServiceType(e.target.value)}
+            onChange={(e) => setServiceType(e.target.value as ServiceType)}
             style={{
               width: "100%",
               padding: "12px",
@@ -86,117 +271,295 @@ export default function NewQuoteServicePage() {
               borderRadius: "8px",
             }}
           >
-            <option value="flight">flight</option>
             <option value="hotel">hotel</option>
+            <option value="flight">flight</option>
             <option value="transfer">transfer</option>
             <option value="tour">tour</option>
             <option value="extra">extra</option>
           </select>
         </div>
 
-        <div>
-          <label style={{ display: "block", marginBottom: "6px" }}>Service Name</label>
-          <input
-            value={serviceName}
-            onChange={(e) => setServiceName(e.target.value)}
-            required
-            style={{
-              width: "100%",
-              padding: "12px",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
-            }}
-          />
+        {serviceType === "hotel" && (
+          <>
+            <div>
+              <label style={{ display: "block", marginBottom: "6px" }}>Hotel Name</label>
+              <input
+                value={hotelName}
+                onChange={(e) => setHotelName(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: "6px" }}>City</label>
+              <input
+                value={hotelCity}
+                onChange={(e) => setHotelCity(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={grid2}>
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Check-in</label>
+                <input
+                  type="date"
+                  value={checkIn}
+                  onChange={(e) => setCheckIn(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Check-out</label>
+                <input
+                  type="date"
+                  value={checkOut}
+                  onChange={(e) => setCheckOut(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div style={grid3}>
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Nights</label>
+                <input
+                  type="number"
+                  value={nights}
+                  onChange={(e) => setNights(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Room Type</label>
+                <input
+                  value={roomType}
+                  onChange={(e) => setRoomType(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Rooms</label>
+                <input
+                  type="number"
+                  value={rooms}
+                  onChange={(e) => setRooms(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: "6px" }}>Meal Plan</label>
+              <input
+                value={mealPlan}
+                onChange={(e) => setMealPlan(e.target.value)}
+                placeholder="Breakfast included, half board, etc."
+                style={inputStyle}
+              />
+            </div>
+          </>
+        )}
+
+        {serviceType === "flight" && (
+          <>
+            <div style={grid2}>
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Airline</label>
+                <input
+                  value={airline}
+                  onChange={(e) => setAirline(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Flight Number</label>
+                <input
+                  value={flightNumber}
+                  onChange={(e) => setFlightNumber(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: "6px" }}>Route</label>
+              <input
+                value={route}
+                onChange={(e) => setRoute(e.target.value)}
+                placeholder="MEX to JFK"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={grid2}>
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Departure Airport Code</label>
+                <input
+                  value={departureAirport}
+                  onChange={(e) => setDepartureAirport(e.target.value.toUpperCase())}
+                  placeholder="MEX"
+                  style={inputStyle}
+                  maxLength={3}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Arrival Airport Code</label>
+                <input
+                  value={arrivalAirport}
+                  onChange={(e) => setArrivalAirport(e.target.value.toUpperCase())}
+                  placeholder="JFK"
+                  style={inputStyle}
+                  maxLength={3}
+                />
+              </div>
+            </div>
+
+            <div style={grid2}>
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Departure Date & Time</label>
+                <input
+                  type="datetime-local"
+                  value={departureDateTime}
+                  onChange={(e) => setDepartureDateTime(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Arrival Date & Time</label>
+                <input
+                  type="datetime-local"
+                  value={arrivalDateTime}
+                  onChange={(e) => setArrivalDateTime(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: "6px" }}>Class</label>
+              <input
+                value={cabinClass}
+                onChange={(e) => setCabinClass(e.target.value)}
+                placeholder="Economy, Business, First"
+                style={inputStyle}
+              />
+            </div>
+          </>
+        )}
+
+        {(serviceType === "transfer" || serviceType === "tour" || serviceType === "extra") && (
+          <>
+            <div>
+              <label style={{ display: "block", marginBottom: "6px" }}>Service Name</label>
+              <input
+                value={genericName}
+                onChange={(e) => setGenericName(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={grid2}>
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>City</label>
+                <input
+                  value={genericCity}
+                  onChange={(e) => setGenericCity(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Service Date</label>
+                <input
+                  type="date"
+                  value={genericDate}
+                  onChange={(e) => setGenericDate(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        <div style={grid2}>
+          <div>
+            <label style={{ display: "block", marginBottom: "6px" }}>Supplier</label>
+            <input
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "6px" }}>Confirmation Code</label>
+            <input
+              value={confirmationCode}
+              onChange={(e) => setConfirmationCode(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
         </div>
 
-        <div>
-          <label style={{ display: "block", marginBottom: "6px" }}>City</label>
-          <input
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
-            }}
-          />
+        <div style={grid2}>
+          <div>
+            <label style={{ display: "block", marginBottom: "6px" }}>Currency</label>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
+              style={inputStyle}
+            >
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="MXN">MXN</option>
+              <option value="GBP">GBP</option>
+              <option value="JPY">JPY</option>
+              <option value="OTHER">OTHER</option>
+            </select>
+          </div>
+
+          {currency === "OTHER" && (
+            <div>
+              <label style={{ display: "block", marginBottom: "6px" }}>Other Currency</label>
+              <input
+                value={otherCurrency}
+                onChange={(e) => setOtherCurrency(e.target.value.toUpperCase())}
+                placeholder="AED, CHF, CAD..."
+                style={inputStyle}
+              />
+            </div>
+          )}
         </div>
 
-        <div>
-          <label style={{ display: "block", marginBottom: "6px" }}>Supplier</label>
-          <input
-            value={supplier}
-            onChange={(e) => setSupplier(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
-            }}
-          />
-        </div>
+        <div style={grid2}>
+          <div>
+            <label style={{ display: "block", marginBottom: "6px" }}>Net Cost</label>
+            <input
+              type="number"
+              step="0.01"
+              value={netCost}
+              onChange={(e) => setNetCost(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
 
-        <div>
-          <label style={{ display: "block", marginBottom: "6px" }}>Currency</label>
-          <input
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
-            }}
-          />
-        </div>
-
-        <div>
-          <label style={{ display: "block", marginBottom: "6px" }}>Unit Cost</label>
-          <input
-            type="number"
-            step="0.01"
-            value={unitCost}
-            onChange={(e) => setUnitCost(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
-            }}
-          />
-        </div>
-
-        <div>
-          <label style={{ display: "block", marginBottom: "6px" }}>Quantity</label>
-          <input
-            type="number"
-            step="0.01"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
-            }}
-          />
-        </div>
-
-        <div>
-          <label style={{ display: "block", marginBottom: "6px" }}>Tax Amount</label>
-          <input
-            type="number"
-            step="0.01"
-            value={taxAmount}
-            onChange={(e) => setTaxAmount(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
-            }}
-          />
+          <div>
+            <label style={{ display: "block", marginBottom: "6px" }}>Taxes</label>
+            <input
+              type="number"
+              step="0.01"
+              value={taxAmount}
+              onChange={(e) => setTaxAmount(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
         </div>
 
         <label style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -205,11 +568,11 @@ export default function NewQuoteServicePage() {
             checked={markupEnabled}
             onChange={(e) => setMarkupEnabled(e.target.checked)}
           />
-          Enable markup for this service
+          Add markup to this service
         </label>
 
         <div>
-          <label style={{ display: "block", marginBottom: "6px" }}>Markup Percent</label>
+          <label style={{ display: "block", marginBottom: "6px" }}>Markup %</label>
           <input
             type="number"
             step="0.01"
@@ -217,10 +580,7 @@ export default function NewQuoteServicePage() {
             onChange={(e) => setMarkupPercent(e.target.value)}
             disabled={!markupEnabled}
             style={{
-              width: "100%",
-              padding: "12px",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
+              ...inputStyle,
               background: markupEnabled ? "white" : "#f3f3f3",
             }}
           />
@@ -229,10 +589,10 @@ export default function NewQuoteServicePage() {
         <label style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <input
             type="checkbox"
-            checked={applyCcFee}
-            onChange={(e) => setApplyCcFee(e.target.checked)}
+            checked={excludeCcFee}
+            onChange={(e) => setExcludeCcFee(e.target.checked)}
           />
-          Apply credit card fee to this service
+          Este servicio NO incluye el 5% de tarjeta
         </label>
 
         <div>
@@ -250,7 +610,7 @@ export default function NewQuoteServicePage() {
           />
         </div>
 
-        <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+        <div style={{ display: "flex", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
           <button
             type="submit"
             disabled={saving}
@@ -279,8 +639,41 @@ export default function NewQuoteServicePage() {
           >
             Cancel
           </button>
+
+          <button
+            type="button"
+            onClick={() => router.push(`/quotes/${id}`)}
+            style={{
+              padding: "12px 18px",
+              borderRadius: "8px",
+              border: "1px solid #ccc",
+              background: "white",
+              cursor: "pointer",
+            }}
+          >
+            View Quote
+          </button>
         </div>
       </form>
     </div>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px",
+  border: "1px solid #ccc",
+  borderRadius: "8px",
+};
+
+const grid2: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "16px",
+};
+
+const grid3: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr 1fr",
+  gap: "16px",
+};
