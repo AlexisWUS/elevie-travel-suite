@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type CurrencyCode = "USD" | "EUR" | "MXN" | "GBP" | "JPY" | "OTHER";
+type SupplierFeeType = "none" | "amount" | "percent";
 
 export default function EditQuoteServicePage() {
   const params = useParams();
@@ -51,6 +52,9 @@ export default function EditQuoteServicePage() {
   const [departureDateTime, setDepartureDateTime] = useState("");
   const [arrivalDateTime, setArrivalDateTime] = useState("");
   const [cabinClass, setCabinClass] = useState("");
+  const [supplierFeeType, setSupplierFeeType] =
+    useState<SupplierFeeType>("none");
+  const [supplierFeeValue, setSupplierFeeValue] = useState("");
 
   useEffect(() => {
     async function fetchService() {
@@ -110,6 +114,12 @@ export default function EditQuoteServicePage() {
         setDepartureDateTime(details.departure_datetime || "");
         setArrivalDateTime(details.arrival_datetime || "");
         setCabinClass(details.cabin_class || "");
+        setSupplierFeeType(
+          (details.supplier_fee_type as SupplierFeeType) || "none"
+        );
+        setSupplierFeeValue(
+          details.supplier_fee_value ? String(details.supplier_fee_value) : ""
+        );
       }
 
       setLoading(false);
@@ -167,6 +177,8 @@ export default function EditQuoteServicePage() {
         departure_datetime: departureDateTime || null,
         arrival_datetime: arrivalDateTime || null,
         cabin_class: cabinClass || null,
+        supplier_fee_type: supplierFeeType,
+        supplier_fee_value: supplierFeeValue ? Number(supplierFeeValue) : 0,
       };
     }
 
@@ -400,8 +412,86 @@ export default function EditQuoteServicePage() {
                 style={inputStyle}
               />
             </div>
+
+            <div style={grid2}>
+              <div>
+                <label style={labelStyle}>Supplier Fee Type</label>
+                <select
+                  value={supplierFeeType}
+                  onChange={(e) =>
+                    setSupplierFeeType(e.target.value as SupplierFeeType)
+                  }
+                  style={inputStyle}
+                >
+                  <option value="none">None</option>
+                  <option value="amount">Amount</option>
+                  <option value="percent">Percent</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Supplier Fee</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={supplierFeeValue}
+                  onChange={(e) => setSupplierFeeValue(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
           </>
         )}
+
+        <div style={grid2}>
+          <div>
+            <label style={labelStyle}>
+              {serviceType === "flight" ? "Price per Person" : "Price"}
+            </label>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <input
+                type="number"
+                step="0.01"
+                value={unitCost}
+                onChange={(e) => setUnitCost(e.target.value)}
+                style={{ ...inputStyle, flex: 2 }}
+              />
+
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
+                style={{ ...inputStyle, flex: 1 }}
+              >
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="MXN">MXN</option>
+                <option value="GBP">GBP</option>
+                <option value="JPY">JPY</option>
+                <option value="OTHER">OTHER</option>
+              </select>
+            </div>
+
+            {currency === "OTHER" && (
+              <input
+                value={otherCurrency}
+                onChange={(e) => setOtherCurrency(e.target.value.toUpperCase())}
+                placeholder="Other currency"
+                style={{ ...inputStyle, marginTop: "8px" }}
+              />
+            )}
+          </div>
+
+          <div>
+            <label style={labelStyle}>Taxes</label>
+            <input
+              type="number"
+              step="0.01"
+              value={taxAmount}
+              onChange={(e) => setTaxAmount(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+        </div>
 
         <div style={grid2}>
           <div>
@@ -418,59 +508,6 @@ export default function EditQuoteServicePage() {
             <input
               value={confirmationCode}
               onChange={(e) => setConfirmationCode(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-        </div>
-
-        <div style={grid2}>
-          <div>
-            <label style={labelStyle}>Currency</label>
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
-              style={inputStyle}
-            >
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-              <option value="MXN">MXN</option>
-              <option value="GBP">GBP</option>
-              <option value="JPY">JPY</option>
-              <option value="OTHER">OTHER</option>
-            </select>
-          </div>
-
-          {currency === "OTHER" && (
-            <div>
-              <label style={labelStyle}>Other Currency</label>
-              <input
-                value={otherCurrency}
-                onChange={(e) => setOtherCurrency(e.target.value.toUpperCase())}
-                style={inputStyle}
-              />
-            </div>
-          )}
-        </div>
-
-        <div style={grid2}>
-          <div>
-            <label style={labelStyle}>Price / Cost</label>
-            <input
-              type="number"
-              step="0.01"
-              value={unitCost}
-              onChange={(e) => setUnitCost(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>Taxes</label>
-            <input
-              type="number"
-              step="0.01"
-              value={taxAmount}
-              onChange={(e) => setTaxAmount(e.target.value)}
               style={inputStyle}
             />
           </div>
