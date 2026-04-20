@@ -9,7 +9,6 @@ interface Quote {
   id: string;
   title: string | null;
   status: string;
-  quote_number: string;
   destination_main: string | null;
   departure_date: string | null;
   return_date: string | null;
@@ -22,10 +21,13 @@ export default function QuoteDetailPage() {
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function fetchQuote() {
+      setLoading(true);
+      setError("");
+
       const { data, error } = await supabase
         .from("quotes")
         .select("*")
@@ -33,100 +35,103 @@ export default function QuoteDetailPage() {
         .single();
 
       if (error) {
-        console.error("Error al cargar la cotización:", error.message);
-        setQuote(null);
-      } else {
-        setQuote(data);
+        setError("Error loading quote");
+        setLoading(false);
+        return;
       }
 
+      setQuote(data);
       setLoading(false);
     }
 
-    fetchQuote();
+    if (id) fetchQuote();
   }, [id]);
 
-  const handleDelete = async () => {
-    if (!quote) return;
-
-    const confirmed = window.confirm(
-      "¿Seguro que quieres borrar esta cotización?"
-    );
-
-    if (!confirmed) return;
-
-    setDeleting(true);
+  async function handleDelete() {
+    const confirmDelete = confirm("Are you sure you want to delete this quote?");
+    if (!confirmDelete) return;
 
     const { error } = await supabase
       .from("quotes")
       .delete()
-      .eq("id", quote.id);
+      .eq("id", id);
 
     if (error) {
-      alert(`Error al borrar la cotización: ${error.message}`);
-      setDeleting(false);
+      alert("Error deleting quote");
       return;
     }
 
     router.push("/quotes");
-  };
+    router.refresh();
+  }
 
   if (loading) {
-    return <p className="p-4">Cargando cotización...</p>;
+    return <div style={{ padding: "24px" }}>Loading...</div>;
+  }
+
+  if (error) {
+    return <div style={{ padding: "24px" }}>{error}</div>;
   }
 
   if (!quote) {
-    return (
-      <main className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-4">Quote no encontrada</h1>
-        <Link href="/quotes" className="text-blue-700">
-          Volver al listado
-        </Link>
-      </main>
-    );
+    return <div style={{ padding: "24px" }}>Quote not found</div>;
   }
 
   return (
-    <main className="p-4 max-w-2xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
+    <div style={{ maxWidth: "720px", margin: "0 auto", padding: "24px" }}>
+      <h1 style={{ fontSize: "28px", marginBottom: "20px" }}>
+        {quote.title || "Untitled Quote"}
+      </h1>
+
+      <div style={{ marginBottom: "12px" }}>
+        <strong>Status:</strong> {quote.status}
+      </div>
+
+      <div style={{ marginBottom: "12px" }}>
+        <strong>Destination:</strong> {quote.destination_main || "-"}
+      </div>
+
+      <div style={{ marginBottom: "12px" }}>
+        <strong>Departure:</strong> {quote.departure_date || "-"}
+      </div>
+
+      <div style={{ marginBottom: "12px" }}>
+        <strong>Return:</strong> {quote.return_date || "-"}
+      </div>
+
+      <div style={{ marginBottom: "12px" }}>
+        <strong>Pax:</strong> {quote.pax_count || "-"}
+      </div>
+
+      {/* BOTONES */}
+      <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
         <Link
-          href="/quotes"
-          className="bg-gray-200 text-black px-3 py-2 rounded text-sm"
+          href={`/quotes/${id}/edit`}
+          style={{
+            padding: "12px 18px",
+            borderRadius: "8px",
+            background: "black",
+            color: "white",
+            textDecoration: "none",
+          }}
         >
-          Back to Quotes
+          Edit Quote
         </Link>
 
         <button
           onClick={handleDelete}
-          disabled={deleting}
-          className="bg-red-600 text-white px-4 py-2 rounded text-sm"
+          style={{
+            padding: "12px 18px",
+            borderRadius: "8px",
+            border: "none",
+            background: "red",
+            color: "white",
+            cursor: "pointer",
+          }}
         >
-          {deleting ? "Deleting..." : "Delete Quote"}
+          Delete
         </button>
       </div>
-
-      <div>
-        <h1 className="text-3xl font-bold">
-          {quote.title ?? `Quote ${quote.quote_number}`}
-        </h1>
-      </div>
-
-      <div className="space-y-2 text-lg">
-        <p>
-          <strong>Estado:</strong> {quote.status}
-        </p>
-        <p>
-          <strong>Destino:</strong> {quote.destination_main ?? "Sin destino"}
-        </p>
-        <p>
-          <strong>Salida:</strong> {quote.departure_date ?? "Sin fecha"}
-        </p>
-        <p>
-          <strong>Regreso:</strong> {quote.return_date ?? "Sin fecha"}
-        </p>
-        <p>
-          <strong>Pasajeros:</strong> {quote.pax_count ?? 0}
-        </p>
-      </div>
-    </main>
+    </div>
   );
 }
