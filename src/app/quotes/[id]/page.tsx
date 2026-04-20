@@ -15,51 +15,56 @@ interface Quote {
   pax_count: number | null;
 }
 
+interface QuoteItem {
+  id: string;
+  service_type: string;
+  service_name: string;
+  currency: string;
+  unit_cost: number;
+  tax_amount: number;
+  markup_enabled: boolean;
+  markup_percent: number;
+  apply_cc_fee: boolean;
+  details: any;
+}
+
 export default function QuoteDetailPage() {
   const { id } = useParams();
   const router = useRouter();
 
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [items, setItems] = useState<QuoteItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    async function fetchQuote() {
+    async function fetchData() {
       setLoading(true);
-      setError("");
 
-      const { data, error } = await supabase
+      const { data: quoteData } = await supabase
         .from("quotes")
         .select("*")
         .eq("id", id)
         .single();
 
-      if (error) {
-        setError("Error loading quote");
-        setLoading(false);
-        return;
-      }
+      const { data: itemsData } = await supabase
+        .from("quote_items")
+        .select("*")
+        .eq("quote_id", id)
+        .order("created_at", { ascending: true });
 
-      setQuote(data);
+      setQuote(quoteData);
+      setItems(itemsData || []);
       setLoading(false);
     }
 
-    if (id) fetchQuote();
+    if (id) fetchData();
   }, [id]);
 
   async function handleDelete() {
-    const confirmDelete = confirm("Are you sure you want to delete this quote?");
+    const confirmDelete = confirm("Delete this quote?");
     if (!confirmDelete) return;
 
-    const { error } = await supabase
-      .from("quotes")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      alert("Error deleting quote");
-      return;
-    }
+    await supabase.from("quotes").delete().eq("id", id);
 
     router.push("/quotes");
     router.refresh();
@@ -69,81 +74,91 @@ export default function QuoteDetailPage() {
     return <div style={{ padding: "24px" }}>Loading...</div>;
   }
 
-  if (error) {
-    return <div style={{ padding: "24px" }}>{error}</div>;
-  }
-
-  if (!quote) {
-    return <div style={{ padding: "24px" }}>Quote not found</div>;
-  }
-
   return (
-    <div style={{ maxWidth: "720px", margin: "0 auto", padding: "24px" }}>
-      <h1 style={{ fontSize: "28px", marginBottom: "20px" }}>
-        {quote.title || "Untitled Quote"}
-      </h1>
+    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px" }}>
+      <h1 style={{ fontSize: "28px" }}>{quote?.title}</h1>
 
-      <div style={{ marginBottom: "12px" }}>
-        <strong>Status:</strong> {quote.status}
+      <div style={{ marginTop: "10px" }}>
+        <strong>Destination:</strong> {quote?.destination_main}
       </div>
 
-      <div style={{ marginBottom: "12px" }}>
-        <strong>Destination:</strong> {quote.destination_main || "-"}
+      <div style={{ marginTop: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        <Link href={`/quotes/${id}/edit`} style={btnDark}>Edit</Link>
+        <Link href={`/quotes/${id}/services/new`} style={btnPrimary}>Add Service</Link>
+        <button onClick={handleDelete} style={btnDanger}>Delete</button>
       </div>
 
-      <div style={{ marginBottom: "12px" }}>
-        <strong>Departure:</strong> {quote.departure_date || "-"}
-      </div>
+      {/* SERVICES */}
+      <div style={{ marginTop: "40px" }}>
+        <h2>Services</h2>
 
-      <div style={{ marginBottom: "12px" }}>
-        <strong>Return:</strong> {quote.return_date || "-"}
-      </div>
+        {items.length === 0 && (
+          <div style={{ marginTop: "10px", color: "#777" }}>
+            No services yet
+          </div>
+        )}
 
-      <div style={{ marginBottom: "12px" }}>
-        <strong>Pax:</strong> {quote.pax_count || "-"}
-      </div>
+        {items.map((item) => {
+          const total = item.unit_cost + item.tax_amount;
 
-      <div style={{ display: "flex", gap: "12px", marginTop: "24px", flexWrap: "wrap" }}>
-        <Link
-          href={`/quotes/${id}/edit`}
-          style={{
-            padding: "12px 18px",
-            borderRadius: "8px",
-            background: "black",
-            color: "white",
-            textDecoration: "none",
-          }}
-        >
-          Edit Quote
-        </Link>
+          return (
+            <div key={item.id} style={card}>
+              <div style={{ fontWeight: "bold" }}>
+                {item.service_type.toUpperCase()} — {item.service_name}
+              </div>
 
-        <Link
-          href={`/quotes/${id}/services/new`}
-          style={{
-            padding: "12px 18px",
-            borderRadius: "8px",
-            background: "#1f5eff",
-            color: "white",
-            textDecoration: "none",
-          }}
-        >
-          Add Service
-        </Link>
+              <div style={{ marginTop: "6px" }}>
+                {item.currency} {total.toLocaleString()}
+              </div>
 
-        <button
-          onClick={handleDelete}
-          style={{
-            padding: "12px 18px",
-            borderRadius: "8px",
-            border: "none",
-            background: "red",
-            color: "white",
-            cursor: "pointer",
-          }}
-        >
-          Delete
-        </button>
+              {item.markup_enabled && (
+                <div style={{ marginTop: "4px", fontSize: "13px" }}>
+                  Markup: {item.markup_percent}%
+                </div>
+              )}
+
+              {!item.apply_cc_fee && (
+                <div style={{ marginTop: "4px", fontSize: "13px" }}>
+                  No CC fee
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
+
+/* STYLES */
+
+const btnDark = {
+  padding: "10px 16px",
+  background: "#000",
+  color: "#fff",
+  borderRadius: "8px",
+  textDecoration: "none",
+};
+
+const btnPrimary = {
+  padding: "10px 16px",
+  background: "#1f5eff",
+  color: "#fff",
+  borderRadius: "8px",
+  textDecoration: "none",
+};
+
+const btnDanger = {
+  padding: "10px 16px",
+  background: "red",
+  color: "#fff",
+  borderRadius: "8px",
+  border: "none",
+};
+
+const card = {
+  border: "1px solid #eee",
+  borderRadius: "10px",
+  padding: "16px",
+  marginTop: "12px",
+};
