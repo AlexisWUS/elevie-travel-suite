@@ -20,11 +20,11 @@ interface QuoteItem {
   service_type: string;
   service_name: string;
   currency: string;
-  unit_cost: number;
-  tax_amount: number;
-  markup_enabled: boolean;
-  markup_percent: number;
-  apply_cc_fee: boolean;
+  unit_cost: number | null;
+  tax_amount: number | null;
+  markup_enabled: boolean | null;
+  markup_percent: number | null;
+  apply_cc_fee: boolean | null;
   details: any;
 }
 
@@ -35,22 +35,36 @@ export default function QuoteDetailPage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
+      setError("");
 
-      const { data: quoteData } = await supabase
+      const { data: quoteData, error: quoteError } = await supabase
         .from("quotes")
         .select("*")
         .eq("id", id)
         .single();
 
-      const { data: itemsData } = await supabase
+      const { data: itemsData, error: itemsError } = await supabase
         .from("quote_items")
         .select("*")
         .eq("quote_id", id)
         .order("created_at", { ascending: true });
+
+      if (quoteError) {
+        setError("Error loading quote");
+        setLoading(false);
+        return;
+      }
+
+      if (itemsError) {
+        setError("Error loading services");
+        setLoading(false);
+        return;
+      }
 
       setQuote(quoteData);
       setItems(itemsData || []);
@@ -64,64 +78,124 @@ export default function QuoteDetailPage() {
     const confirmDelete = confirm("Delete this quote?");
     if (!confirmDelete) return;
 
-    await supabase.from("quotes").delete().eq("id", id);
+    const { error } = await supabase.from("quotes").delete().eq("id", id);
+
+    if (error) {
+      alert("Could not delete quote");
+      return;
+    }
 
     router.push("/quotes");
     router.refresh();
   }
 
+  function formatMoney(currency: string, amount: number) {
+    return `${currency} ${amount.toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
   if (loading) {
-    return <div style={{ padding: "24px" }}>Loading...</div>;
+    return <div style={{ padding: "32px" }}>Loading...</div>;
+  }
+
+  if (error) {
+    return <div style={{ padding: "32px", color: "red" }}>{error}</div>;
   }
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px" }}>
-      <h1 style={{ fontSize: "28px" }}>{quote?.title}</h1>
-
-      <div style={{ marginTop: "10px" }}>
-        <strong>Destination:</strong> {quote?.destination_main}
+    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "32px" }}>
+      
+      {/* BACK */}
+      <div style={{ marginBottom: "20px" }}>
+        <button
+          onClick={() => router.push("/quotes")}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#2f4756",
+            cursor: "pointer",
+            fontSize: "14px",
+          }}
+        >
+          ← Back to Quotes
+        </button>
       </div>
 
-      <div style={{ marginTop: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-        <Link href={`/quotes/${id}/edit`} style={btnDark}>Edit</Link>
-        <Link href={`/quotes/${id}/services/new`} style={btnPrimary}>Add Service</Link>
-        <button onClick={handleDelete} style={btnDanger}>Delete</button>
+      {/* HEADER */}
+      <h1 style={{ fontSize: "32px", color: "#2f4756", marginBottom: "10px" }}>
+        {quote?.title}
+      </h1>
+
+      <div style={{ color: "#6b7c87" }}>
+        Destination: {quote?.destination_main}
+      </div>
+
+      {/* ACTION BUTTONS */}
+      <div style={{ marginTop: "24px", display: "flex", gap: "10px" }}>
+        <Link href={`/quotes/${id}/edit`} style={btnBlack}>
+          Edit
+        </Link>
+
+        <Link href={`/quotes/${id}/services/new`} style={btnBlue}>
+          Add Service
+        </Link>
+
+        <button onClick={handleDelete} style={btnRed}>
+          Delete
+        </button>
       </div>
 
       {/* SERVICES */}
       <div style={{ marginTop: "40px" }}>
-        <h2>Services</h2>
+        <h2 style={{ color: "#2f4756" }}>Services</h2>
 
         {items.length === 0 && (
-          <div style={{ marginTop: "10px", color: "#777" }}>
+          <div style={{ marginTop: "10px", color: "#888" }}>
             No services yet
           </div>
         )}
 
         {items.map((item) => {
-          const total = item.unit_cost + item.tax_amount;
+          const total =
+            (item.unit_cost || 0) + (item.tax_amount || 0);
 
           return (
             <div key={item.id} style={card}>
-              <div style={{ fontWeight: "bold" }}>
+              <div style={{ fontWeight: "bold", color: "#2f4756" }}>
                 {item.service_type.toUpperCase()} — {item.service_name}
               </div>
 
               <div style={{ marginTop: "6px" }}>
-                {item.currency} {total.toLocaleString()}
+                {formatMoney(item.currency, total)}
               </div>
 
               {item.markup_enabled && (
-                <div style={{ marginTop: "4px", fontSize: "13px" }}>
+                <div style={smallText}>
                   Markup: {item.markup_percent}%
                 </div>
               )}
 
               {!item.apply_cc_fee && (
-                <div style={{ marginTop: "4px", fontSize: "13px" }}>
+                <div style={smallText}>
                   No CC fee
                 </div>
               )}
+
+              {/* EDIT SERVICE */}
+              <div style={{ marginTop: "10px" }}>
+                <Link
+                  href={`/quotes/${id}/services/${item.id}/edit`}
+                  style={{
+                    fontSize: "13px",
+                    color: "#1f5eff",
+                    textDecoration: "none",
+                  }}
+                >
+                  Edit Service
+                </Link>
+              </div>
             </div>
           );
         })}
@@ -132,7 +206,7 @@ export default function QuoteDetailPage() {
 
 /* STYLES */
 
-const btnDark = {
+const btnBlack = {
   padding: "10px 16px",
   background: "#000",
   color: "#fff",
@@ -140,7 +214,7 @@ const btnDark = {
   textDecoration: "none",
 };
 
-const btnPrimary = {
+const btnBlue = {
   padding: "10px 16px",
   background: "#1f5eff",
   color: "#fff",
@@ -148,9 +222,9 @@ const btnPrimary = {
   textDecoration: "none",
 };
 
-const btnDanger = {
+const btnRed = {
   padding: "10px 16px",
-  background: "red",
+  background: "#d92d20",
   color: "#fff",
   borderRadius: "8px",
   border: "none",
@@ -158,7 +232,14 @@ const btnDanger = {
 
 const card = {
   border: "1px solid #eee",
-  borderRadius: "10px",
+  borderRadius: "12px",
   padding: "16px",
   marginTop: "12px",
+  background: "white",
+};
+
+const smallText = {
+  fontSize: "13px",
+  marginTop: "4px",
+  color: "#6b7c87",
 };
