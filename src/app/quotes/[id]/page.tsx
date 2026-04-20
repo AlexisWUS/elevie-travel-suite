@@ -103,8 +103,7 @@ export default function QuoteDetailPage() {
         <strong>Pax:</strong> {quote.pax_count || "-"}
       </div>
 
-      {/* BOTONES */}
-      <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+      <div style={{ display: "flex", gap: "12px", marginTop: "24px", flexWrap: "wrap" }}>
         <Link
           href={`/quotes/${id}/edit`}
           style={{
@@ -116,6 +115,19 @@ export default function QuoteDetailPage() {
           }}
         >
           Edit Quote
+        </Link>
+
+        <Link
+          href={`/quotes/${id}/services/new`}
+          style={{
+            padding: "12px 18px",
+            borderRadius: "8px",
+            background: "#1f5eff",
+            color: "white",
+            textDecoration: "none",
+          }}
+        >
+          Add Service
         </Link>
 
         <button
